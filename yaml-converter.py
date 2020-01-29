@@ -30,6 +30,34 @@ def create_directory(path):
             raise
 
 
+def create_dependency_dict(list_list_modules):
+    """
+    :param list_list_modules:  [[modules] [modules]]
+    :return: { dependencies_string: [module_pkgs]}
+    """
+    dependency_dict = {}  # { dependencies_string: [module_pkgs]}
+    for module_list in list_list_modules:
+        for module_pkg in module_list:
+            dependency_dict.setdefault(
+                module_requires_to_string(module_pkg), []).append(module_pkg)
+    return dependency_dict
+
+
+def modify_yaml(module, new_string_context):
+    matched_context = find_context_string(module)
+    if not matched_context:
+        raise ValueError("Context not found: ", module.getFullIdentifier)
+    modified = modify_string(module.getYaml(), matched_context, new_string_context)
+    if modified[1] == 0:
+        raise ValueError(
+            "Context not matched", matched_context, module.getFullIdentifier)
+    new_md_doc = modified[0]
+    modified = modify_string(new_md_doc, r'\nversion:\s*\d+', '\nversion: 3')
+    if modified[1] != 1:
+        raise ValueError("Matched incorrectly version")
+    return modified[0]
+
+
 def merge_and_write_new_yamls(new_md_doc_repo_dict):
     output_dir = 'output_yamls'
     create_directory(output_dir)
@@ -40,6 +68,24 @@ def merge_and_write_new_yamls(new_md_doc_repo_dict):
         path = os.path.join(repo_path, 'modules.yaml')
         with open(path, mode='w') as file:
             file.write(new_yaml)
+
+
+def find_context_string(module):
+    yaml_md = module.getYaml()
+    data_section_found = False
+    for line in yaml_md.split("\n"):
+        if not data_section_found:
+            if line.startswith("data:"):
+                data_section_found = True
+            continue
+        if not line.startswith(" "):
+            raise ValueError(
+                "cannot detect contect in {}".format(module.getFullIdentifier()))
+        pattern = "\s+(context:\s*{})".format(module.getContext())
+        match = re.match(pattern, line)
+        if match:
+            return match.group(1)
+    return None
 
 
 base = dnf.base.Base()
@@ -56,8 +102,9 @@ for module in modules:
         if line.startswith("version:"):
             md_version = int(line[8:].strip())
             break
-    if not md_version:
-        raise ValueError("cannot detect md version for {}".format(module.getFullIdentifier()))
+    if md_version not in [2, 3]:
+        raise ValueError("cannot detect supported md version for {}: {}".format(
+            module.getFullIdentifier(), md_version))
     module_stream_dict.setdefault(
         module.getNameStream(), {}).setdefault(md_version, []).append(module)
 
@@ -65,41 +112,39 @@ new_md_doc_repo_dict = {}  # { repoid: [new_md_doc]}
 for module_stream in module_stream_dict.values():
     if 2 not in module_stream:
         for module_list in module_stream.values():
-            for module_pkg in module_list:
+            for module in module_list:
                 new_md_doc_repo_dict.setdefault(module.getRepoID(), []).append(module.getYaml())
     if 3 in module_stream:
-        pass
+        v3_list_modules = module_stream[3]
+        dependency_v3_dict = create_dependency_dict([v3_list_modules])  # { dependencies_string: [module_pkgs]}
+        # add v3 to output set
+        for module in v3_list_modules:
+            new_md_doc_repo_dict.setdefault(module.getRepoID(), []).append(module.getYaml())
+
+        for md_version, module_list in module_stream.items():
+            if md_version == 3:
+                continue
+            dependency_dict = create_dependency_dict([module_list])
+            x = 0
+            for dependencies_string, module_list in dependency_dict.items():
+                if dependencies_string in dependency_v3_dict:
+                    context = dependency_v3_dict[dependencies_string][0].getContext()
+                    new_string_context = "context: {}".format(context)
+                else:
+                    new_string_context = "context: {}".format(string.ascii_lowercase[x])
+                    x += 1
+                for module in module_list:
+                    modified_yaml = modify_yaml(module, new_string_context)
+                    new_md_doc_repo_dict.setdefault(module.getRepoID(), []).append(modified_yaml)
+
     else:
-        dependency_dict = {}  # { dependencies_string: [module_pkgs]}
-        for module_list in module_stream.values():
-            for module_pkg in module_list:
-                dependency_dict.setdefault(
-                    module_requires_to_string(module_pkg), []).append(module_pkg)
+        dependency_dict = create_dependency_dict(module_stream.values())
         x = 0
         for module_list in dependency_dict.values():
             new_string_context = "context: {}".format(string.ascii_lowercase[x])
             for module in module_list:
-                new_md_doc = ""
-                data_section_found = False
-                for line in module.getYaml().split("\n"):
-                    if not data_section_found:
-                        if line.startswith("data:"):
-                            data_section_found = True
-                        continue
-                    if not line.startswith(" "):
-                        raise ValueError(
-                            "cannot detect contect in {}".format(module.getFullIdentifier()))
-                    match = re.match(r"  (context:\s*\S+)", line)
-                    if match:
-                        modified = modify_string(module.getYaml(), match.group(1), new_string_context)
-                        if modified[1] == 0:
-                            raise ValueError("Matched incorrectly context", match.group(1), line, modified[1], module.getYaml())
-                        new_md_doc = modified[0]
-                        break
-                modified = modify_string(new_md_doc, r'\nversion:\s*\d+', '\nversion: 3')
-                if modified[1] != 1:
-                    raise ValueError("Matched incorrectly version")
-                new_md_doc_repo_dict.setdefault(module.getRepoID(), []).append(modified[0])
+                modified_yaml = modify_yaml(module, new_string_context)
+                new_md_doc_repo_dict.setdefault(module.getRepoID(), []).append(modified_yaml)
             x += 1
 
 merge_and_write_new_yamls(new_md_doc_repo_dict)
