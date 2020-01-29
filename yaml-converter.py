@@ -43,7 +43,6 @@ def merge_and_write_new_yamls(new_md_doc_repo_dict):
 
 
 base = dnf.base.Base()
-base.conf.releasever='30'
 base.read_all_repos()
 # add internal callback from dnf
 base.repos.all().set_progress_bar(dnf.cli.progress.MultiFileProgressMeter(fo=sys.stdout))
