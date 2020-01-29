@@ -96,7 +96,7 @@ for module_stream in module_stream_dict.values():
                 new_md_doc_repo_dict.setdefault(module.getRepoID(), []).append(module.getYaml())
     if 3 in module_stream:
         v3_list_modules = module_stream[3]
-        dependency_v3_dict = create_dependency_dict([v3_list_modules])  # { dependencies_string: [module_pkgs]}
+        dependency_v3_dict = create_dependency_dict([v3_list_modules])
         # add v3 to output set
         for module in v3_list_modules:
             new_md_doc_repo_dict.setdefault(module.getRepoID(), []).append(module.getYaml())
@@ -106,14 +106,14 @@ for module_stream in module_stream_dict.values():
                 continue
             dependency_dict = create_dependency_dict([module_list])
             x = 0
-            for dependencies_string, module_list in dependency_dict.items():
+            for dependencies_string, module_dep_list in dependency_dict.items():
                 if dependencies_string in dependency_v3_dict:
                     context = dependency_v3_dict[dependencies_string][0].getContext()
                     new_string_context = "context: {}".format(context)
                 else:
                     new_string_context = "context: {}".format(string.ascii_lowercase[x])
                     x += 1
-                for module in module_list:
+                for module in module_dep_list:
                     modified_yaml = modify_yaml(module, new_string_context)
                     new_md_doc_repo_dict.setdefault(module.getRepoID(), []).append(modified_yaml)
 
