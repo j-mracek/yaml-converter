@@ -113,6 +113,8 @@ for module_stream in module_stream_dict.values():
                 else:
                     new_string_context = "context: {}".format(string.ascii_lowercase[x])
                     x += 1
+                    print("Warning '{}' was detected as a multi-context stream. Manual data check "
+                          "is recommended".format(module_stream))
                 for module in module_dep_list:
                     modified_yaml = modify_yaml(module, new_string_context)
                     new_md_doc_repo_dict.setdefault(module.getRepoID(), []).append(modified_yaml)
@@ -121,6 +123,9 @@ for module_stream in module_stream_dict.values():
         dependency_dict = create_dependency_dict(module_stream.values())
         x = 0
         for module_list in dependency_dict.values():
+            if x == 1:
+                print("Warning '{}' was detected as a multi-context stream. Manual data check "
+                      "is recommended".format(module_stream))
             new_string_context = "context: {}".format(string.ascii_lowercase[x])
             for module in module_list:
                 modified_yaml = modify_yaml(module, new_string_context)
