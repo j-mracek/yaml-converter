@@ -2,9 +2,12 @@
 
 import dnf
 import dnf.cli
+import errno
+import os
 import sys
 import string
 import re
+
 
 def module_requires_to_string(module):
     req_list = []
@@ -14,9 +17,29 @@ def module_requires_to_string(module):
                 req_list.append("{}:[{}]".format(mod_require, ",".join(streams)))
     return ";".join(sorted(req_list))
 
+
 def modify_string(yaml, pattern, new):
     return re.subn(pattern, new, yaml)
 
+
+def create_directory(path):
+    try:
+        os.makedirs(path)
+    except OSError as e:
+        if e.errno != errno.EEXIST:
+            raise
+
+
+def merge_and_write_new_yamls(new_md_doc_repo_dict):
+    output_dir = 'output_yamls'
+    create_directory(output_dir)
+    for repoid, md_doc_list in new_md_doc_repo_dict.items():
+        repo_path = os.path.join(output_dir, repoid)
+        create_directory(repo_path)
+        new_yaml = "".join(sorted(md_doc_list))
+        path = os.path.join(repo_path, 'modules.yaml')
+        with open(path, mode='w') as file:
+            file.write(new_yaml)
 
 
 base = dnf.base.Base()
@@ -77,3 +100,5 @@ for module_stream in module_stream_dict.values():
                     raise ValueError("Matched incorrectly version")
                 new_md_doc_repo_dict.setdefault(module.getRepoID(), []).append(modified[0])
             x += 1
+
+merge_and_write_new_yamls(new_md_doc_repo_dict)
