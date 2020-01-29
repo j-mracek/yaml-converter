@@ -65,7 +65,9 @@ for module in modules:
 new_md_doc_repo_dict = {}  # { repoid: [new_md_doc]}
 for module_stream in module_stream_dict.values():
     if 2 not in module_stream:
-        continue
+        for module_list in module_stream.values():
+            for module_pkg in module_list:
+                new_md_doc_repo_dict.setdefault(module.getRepoID(), []).append(module.getYaml())
     if 3 in module_stream:
         pass
     else:
