@@ -44,13 +44,11 @@ def create_dependency_dict(list_list_modules):
 
 
 def modify_yaml(module, new_string_context):
-    matched_context = find_context_string(module)
-    if not matched_context:
-        raise ValueError("Context not found: ", module.getFullIdentifier)
-    modified = modify_string(module.getYaml(), matched_context, new_string_context)
+    match_context_pattern = "context:\s*{}".format(module.getContext())
+    modified = modify_string(module.getYaml(), match_context_pattern, new_string_context)
     if modified[1] == 0:
         raise ValueError(
-            "Context not matched", matched_context, module.getFullIdentifier)
+            "Context not matched", match_context_pattern, module.getFullIdentifier())
     new_md_doc = modified[0]
     modified = modify_string(new_md_doc, r'\nversion:\s*\d+', '\nversion: 3')
     if modified[1] != 1:
@@ -68,24 +66,6 @@ def merge_and_write_new_yamls(new_md_doc_repo_dict):
         path = os.path.join(repo_path, 'modules.yaml')
         with open(path, mode='w') as file:
             file.write(new_yaml)
-
-
-def find_context_string(module):
-    yaml_md = module.getYaml()
-    data_section_found = False
-    for line in yaml_md.split("\n"):
-        if not data_section_found:
-            if line.startswith("data:"):
-                data_section_found = True
-            continue
-        if not line.startswith(" "):
-            raise ValueError(
-                "cannot detect contect in {}".format(module.getFullIdentifier()))
-        pattern = "\s+(context:\s*{})".format(module.getContext())
-        match = re.match(pattern, line)
-        if match:
-            return match.group(1)
-    return None
 
 
 base = dnf.base.Base()
